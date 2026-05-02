@@ -1,0 +1,22 @@
+{
+  "name": "obsidian-coding-vault",
+  "version": "1.0.0",
+  "description": "Store, search, and retrieve code snippets in your Obsidian vault with optional LM Studio AI metadata.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "lint": "tsc -noEmit -skipLibCheck"
+  },
+  "keywords": ["obsidian", "obsidian-plugin", "code-snippets", "lm-studio"],
+  "author": "YOUR_GITHUB_USERNAME",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "tslib": "^2.6.0",
+    "typescript": "^5.4.0"
+  }
+}

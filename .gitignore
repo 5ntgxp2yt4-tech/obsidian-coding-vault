@@ -1,0 +1,10 @@
+# dependencies
+node_modules/
+
+# build output (committed only in releases)
+main.js
+
+# editor
+.vscode/
+*.swp
+.DS_Store

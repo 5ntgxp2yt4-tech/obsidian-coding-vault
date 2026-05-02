@@ -1,0 +1,11 @@
+{
+  "id": "coding-vault",
+  "name": "Coding Vault",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Store, search, and retrieve code snippets in your Obsidian vault with optional LM Studio AI metadata generation.",
+  "author": "YOUR_GITHUB_USERNAME",
+  "authorUrl": "https://github.com/YOUR_GITHUB_USERNAME/obsidian-coding-vault",
+  "fundingUrl": "",
+  "isDesktopOnly": false
+}
