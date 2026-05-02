@@ -1,6 +1,6 @@
 {
   "name": "obsidian-coding-vault",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Store, search, and retrieve code snippets in your Obsidian vault with optional LM Studio AI metadata.",
   "main": "main.js",
   "scripts": {

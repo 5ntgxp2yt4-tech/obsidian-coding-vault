@@ -24,11 +24,21 @@ interface SnippetMeta {
   frameworks: string[];
 }
 
+interface QueryFilters {
+  includeTags: string[];
+  excludeTags: string[];
+  includeCodeLanguages: string[];
+  excludeCodeLanguages: string[];
+  includeHumanLanguages: string[];
+  excludeHumanLanguages: string[];
+}
+
 interface CodingVaultSettings {
   lmstudioUrl: string;
   managerModel: string;
   dbDir: string;
   fastMode: boolean;
+  queryFilters: QueryFilters;
 }
 
 interface SnippetResult {
@@ -36,6 +46,8 @@ interface SnippetResult {
   title: string;
   language: string;
   purpose: string;
+  tags: string[];
+  humanLanguages: string[];
 }
 
 // ── Defaults ────────────────────────────────────────────────────────────────────
@@ -45,6 +57,14 @@ const DEFAULT_SETTINGS: CodingVaultSettings = {
   managerModel: "obsidian-manager",
   dbDir: "Copilot/Coding Database",
   fastMode: true,
+  queryFilters: {
+    includeTags: [],
+    excludeTags: [],
+    includeCodeLanguages: [],
+    excludeCodeLanguages: [],
+    includeHumanLanguages: [],
+    excludeHumanLanguages: [],
+  },
 };
 
 // ── Language map ────────────────────────────────────────────────────────────────
@@ -149,6 +169,51 @@ function buildNoteContent(
   ].join("\n");
 
   return `${fm}\n\n## ${meta.title}\n\n\`\`\`${language}\n${code}\n\`\`\`\n`;
+}
+
+function parseCsvList(raw: string): string[] {
+  return [...new Set(raw.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean))];
+}
+
+function listToCsv(values: string[]): string {
+  return values.join(", ");
+}
+
+function detectHumanLanguages(text: string): string[] {
+  const langs: string[] = [];
+  if (/[A-Za-z]/.test(text)) langs.push("english");
+  if (/[\u4E00-\u9FFF]/.test(text)) langs.push("chinese");
+  if (/[\u3040-\u30FF]/.test(text)) langs.push("japanese");
+  if (/[\uAC00-\uD7AF]/.test(text)) langs.push("korean");
+  if (/[\u0400-\u04FF]/.test(text)) langs.push("cyrillic");
+  if (/[\u0600-\u06FF]/.test(text)) langs.push("arabic");
+  if (/[\u0900-\u097F]/.test(text)) langs.push("devanagari");
+  if (!langs.length) langs.push("unknown");
+  return langs;
+}
+
+function intersects(a: string[], b: string[]): boolean {
+  const setA = new Set(a);
+  return b.some((item) => setA.has(item));
+}
+
+function applyQueryFilters(results: SnippetResult[], filters: QueryFilters): SnippetResult[] {
+  return results.filter((r) => {
+    const tags = r.tags.map((x) => x.toLowerCase());
+    const codeLang = r.language.toLowerCase();
+    const humanLangs = r.humanLanguages.map((x) => x.toLowerCase());
+
+    if (filters.includeTags.length && !intersects(tags, filters.includeTags)) return false;
+    if (filters.excludeTags.length && intersects(tags, filters.excludeTags)) return false;
+
+    if (filters.includeCodeLanguages.length && !filters.includeCodeLanguages.includes(codeLang)) return false;
+    if (filters.excludeCodeLanguages.length && filters.excludeCodeLanguages.includes(codeLang)) return false;
+
+    if (filters.includeHumanLanguages.length && !intersects(humanLangs, filters.includeHumanLanguages)) return false;
+    if (filters.excludeHumanLanguages.length && intersects(humanLangs, filters.excludeHumanLanguages)) return false;
+
+    return true;
+  });
 }
 
 // ── Fast metadata (no LLM) ──────────────────────────────────────────────────────
@@ -325,7 +390,7 @@ class QueryModal extends SuggestModal<SnippetResult> {
   constructor(app: App, results: SnippetResult[]) {
     super(app);
     this.results = results;
-    this.setPlaceholder("Search by title, language, or purpose…");
+    this.setPlaceholder("Search by title, language, purpose, tags, or human language…");
   }
 
   getSuggestions(query: string): SnippetResult[] {
@@ -336,21 +401,133 @@ class QueryModal extends SuggestModal<SnippetResult> {
         (r) =>
           r.title.toLowerCase().includes(q) ||
           r.language.toLowerCase().includes(q) ||
-          r.purpose.toLowerCase().includes(q)
+          r.purpose.toLowerCase().includes(q) ||
+          r.tags.some((t) => t.toLowerCase().includes(q)) ||
+          r.humanLanguages.some((l) => l.toLowerCase().includes(q))
       )
       .slice(0, 50);
   }
 
   renderSuggestion(item: SnippetResult, el: HTMLElement) {
     el.createEl("div", { text: item.title, cls: "suggestion-title" });
+    const tagsPreview = item.tags.slice(0, 3).join(", ");
     el.createEl("small", {
-      text: `${item.language}${item.purpose ? " — " + item.purpose : ""}`,
+      text: `${item.language}${item.purpose ? " — " + item.purpose : ""}${tagsPreview ? " | tags: " + tagsPreview : ""}`,
       cls: "suggestion-note",
     });
   }
 
   onChooseSuggestion(item: SnippetResult) {
     this.app.workspace.getLeaf(false).openFile(item.file);
+  }
+}
+
+class QueryFilterModal extends Modal {
+  private plugin: CodingVaultPlugin;
+
+  constructor(app: App, plugin: CodingVaultPlugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    const filters = this.plugin.settings.queryFilters;
+
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "Query Filter Options" });
+    contentEl.createEl("p", {
+      text: "Use comma-separated values. Examples: python, swift or english, chinese",
+      cls: "coding-vault-meta-notice",
+    });
+
+    const draft: QueryFilters = {
+      includeTags: [...filters.includeTags],
+      excludeTags: [...filters.excludeTags],
+      includeCodeLanguages: [...filters.includeCodeLanguages],
+      excludeCodeLanguages: [...filters.excludeCodeLanguages],
+      includeHumanLanguages: [...filters.includeHumanLanguages],
+      excludeHumanLanguages: [...filters.excludeHumanLanguages],
+    };
+
+    new Setting(contentEl)
+      .setName("Include tags")
+      .addText((t) =>
+        t.setValue(listToCsv(draft.includeTags)).onChange((v) => {
+          draft.includeTags = parseCsvList(v);
+        })
+      );
+
+    new Setting(contentEl)
+      .setName("Exclude tags")
+      .addText((t) =>
+        t.setValue(listToCsv(draft.excludeTags)).onChange((v) => {
+          draft.excludeTags = parseCsvList(v);
+        })
+      );
+
+    new Setting(contentEl)
+      .setName("Include code languages")
+      .setDesc("Filters by frontmatter language field.")
+      .addText((t) =>
+        t.setValue(listToCsv(draft.includeCodeLanguages)).onChange((v) => {
+          draft.includeCodeLanguages = parseCsvList(v);
+        })
+      );
+
+    new Setting(contentEl)
+      .setName("Exclude code languages")
+      .addText((t) =>
+        t.setValue(listToCsv(draft.excludeCodeLanguages)).onChange((v) => {
+          draft.excludeCodeLanguages = parseCsvList(v);
+        })
+      );
+
+    new Setting(contentEl)
+      .setName("Include human languages")
+      .setDesc("Heuristic detection from note text, e.g. english, chinese, japanese.")
+      .addText((t) =>
+        t.setValue(listToCsv(draft.includeHumanLanguages)).onChange((v) => {
+          draft.includeHumanLanguages = parseCsvList(v);
+        })
+      );
+
+    new Setting(contentEl)
+      .setName("Exclude human languages")
+      .addText((t) =>
+        t.setValue(listToCsv(draft.excludeHumanLanguages)).onChange((v) => {
+          draft.excludeHumanLanguages = parseCsvList(v);
+        })
+      );
+
+    new Setting(contentEl)
+      .addButton((btn) =>
+        btn.setButtonText("Save").setCta().onClick(async () => {
+          this.plugin.settings.queryFilters = draft;
+          await this.plugin.saveSettings();
+          new Notice("Query filters saved.");
+          this.close();
+        })
+      )
+      .addButton((btn) =>
+        btn.setButtonText("Clear All").onClick(async () => {
+          this.plugin.settings.queryFilters = {
+            includeTags: [],
+            excludeTags: [],
+            includeCodeLanguages: [],
+            excludeCodeLanguages: [],
+            includeHumanLanguages: [],
+            excludeHumanLanguages: [],
+          };
+          await this.plugin.saveSettings();
+          new Notice("Query filters cleared.");
+          this.close();
+        })
+      );
+  }
+
+  onClose() {
+    this.contentEl.empty();
   }
 }
 
@@ -424,6 +601,15 @@ class CodingVaultSettingTab extends PluginSettingTab {
         t.setValue(this.plugin.settings.fastMode).onChange(async (v) => {
           this.plugin.settings.fastMode = v;
           await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Query filter options")
+      .setDesc("Choose include/exclude filters for tags, code languages, and human languages.")
+      .addButton((btn) =>
+        btn.setButtonText("Open Options").onClick(() => {
+          new QueryFilterModal(this.app, this.plugin).open();
         })
       );
 
@@ -502,6 +688,12 @@ export default class CodingVaultPlugin extends Plugin {
       callback: () => this.openQueryModal(),
     });
 
+    this.addCommand({
+      id: "query-filter-options",
+      name: "Query filter options",
+      callback: () => new QueryFilterModal(this.app, this).open(),
+    });
+
     this.addSettingTab(new CodingVaultSettingTab(this.app, this));
   }
 
@@ -574,31 +766,48 @@ export default class CodingVaultPlugin extends Plugin {
   // ── Query ───────────────────────────────────────────────────────────────────
 
   async openQueryModal(): Promise<void> {
-    const results = this.loadSnippetIndex();
-    if (!results.length) {
+    const all = await this.loadSnippetIndex();
+    const results = applyQueryFilters(all, this.settings.queryFilters);
+    if (!all.length) {
       new Notice(
         `No snippets found in "${this.settings.dbDir}". Store some first.`
       );
       return;
     }
+    if (!results.length) {
+      new Notice("No snippets match current filters. Use Query Filter Options to adjust.");
+      return;
+    }
     new QueryModal(this.app, results).open();
   }
 
-  loadSnippetIndex(): SnippetResult[] {
+  async loadSnippetIndex(): Promise<SnippetResult[]> {
     const prefix = this.settings.dbDir + "/";
-    return this.app.vault
+    const files = this.app.vault
       .getMarkdownFiles()
-      .filter((f) => f.path.startsWith(prefix))
-      .map((file) => {
-        const fm =
-          this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-        return {
-          file,
-          title: fm.title ?? file.basename,
-          language: fm.language ?? "unknown",
-          purpose: fm.purpose ?? "",
-        };
-      })
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .filter((f) => f.path.startsWith(prefix));
+
+    const results: SnippetResult[] = [];
+    for (const file of files) {
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+      const title = fm.title ?? file.basename;
+      const language = fm.language ?? "unknown";
+      const purpose = fm.purpose ?? "";
+      const tags = Array.isArray(fm.tags)
+        ? fm.tags.map((t: unknown) => String(t))
+        : [];
+      const textForDetection = `${title}\n${purpose}\n${tags.join(" ")}`;
+      const humanLanguages = detectHumanLanguages(textForDetection);
+      results.push({
+        file,
+        title,
+        language,
+        purpose,
+        tags,
+        humanLanguages,
+      });
+    }
+
+    return results.sort((a, b) => a.title.localeCompare(b.title));
   }
 }
