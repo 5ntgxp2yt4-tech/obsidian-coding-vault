@@ -9,7 +9,7 @@ An [Obsidian](https://obsidian.md) plugin that turns your vault into a searchabl
 - **Query Snippets** — fuzzy-search your entire snippet database by title, language, or purpose.
 - **Fast mode** *(default)* — derives title and tags from code structure instantly, no LLM required.
 - **LLM mode** — calls your local LM Studio manager model to generate rich metadata automatically.
-- **Compatible with [obsidian-coding-pipeline](https://github.com/YOUR_GITHUB_USERNAME/obsidian-coding-pipeline)** — shares the same frontmatter schema.
+- **Compatible with [obsidian-coding-pipeline](https://github.com/5ntgxp2yt4-tech/obsidian-coding-pipeline)** — shares the same frontmatter schema.
 
 ## Installation
 
@@ -21,13 +21,13 @@ An [Obsidian](https://obsidian.md) plugin that turns your vault into a searchabl
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/YOUR_GITHUB_USERNAME/obsidian-coding-vault/releases/latest).
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/5ntgxp2yt4-tech/obsidian-coding-vault/releases/latest).
 2. Copy them into `<your-vault>/.obsidian/plugins/coding-vault/`
 3. Reload Obsidian and enable the plugin.
 
 ### BRAT (Beta Reviewers Auto-update Tester)
 
-Add `YOUR_GITHUB_USERNAME/obsidian-coding-vault` in the BRAT plugin settings.
+Add `5ntgxp2yt4-tech/obsidian-coding-vault` in the BRAT plugin settings.
 
 ## Configuration
 
@@ -88,7 +88,7 @@ def reverse_linked_list(head):
 ## Building from source
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/obsidian-coding-vault
+git clone https://github.com/5ntgxp2yt4-tech/obsidian-coding-vault
 cd obsidian-coding-vault
 npm install
 npm run build
