@@ -11,6 +11,9 @@
   "keywords": ["obsidian", "obsidian-plugin", "code-snippets", "lm-studio"],
   "author": "5ntgxp2yt4-tech",
   "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "builtin-modules": "^3.3.0",
